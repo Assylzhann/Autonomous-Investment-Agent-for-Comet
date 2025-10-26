@@ -1,0 +1,39 @@
+from comet.wallet import get_balance, swap, get_price
+
+portfolio = get_balance("USDC")
+target_profit = 1.2
+stop_loss = 0.9
+invest_ratio = 0.25
+
+def invest_in_token(token):
+    amount = portfolio * invest_ratio
+    buy_price = get_price(token)
+    swap("USDC", token, amount)
+    print(f"Bought {token} at ${buy_price}")
+
+    while True:
+        price = get_price(token)
+        if price >= buy_price * target_profit:
+            swap(token, "USDC", "all")
+            print(f"Sold {token} for profit")
+            break
+        elif price <= buy_price * stop_loss:
+            swap(token, "USDC", "all")
+            print(f"Stopped loss for {token}")
+            break
+
+
+
+# Agent Cycle
+
+deposit — you fund the agent with USDC.
+
+scan — it analyzes trending tokens.
+
+invest — buys a token using 25% of the portfolio.
+
+monitor — tracks price movements.
+
+sell & reinvest — sells at +20% profit, reinvests automatically.
+
+report — every 6 hours it reports the full portfolio status.

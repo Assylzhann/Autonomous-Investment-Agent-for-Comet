@@ -1,0 +1,10 @@
+deposit 100 USDC
+set strategy {
+  profitTarget: +20%,
+  stopLoss: -10%,
+  investPerTrade: 25%,
+  reserveInUSDC: true
+}
+start investing in trending tokens on DEX Screener (volume > $1M, verified contracts)
+track and report portfolio every 6h
+

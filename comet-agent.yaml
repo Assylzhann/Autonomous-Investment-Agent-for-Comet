@@ -1,0 +1,94 @@
+name: AutoInvestor
+version: 1.0
+description: >
+  Autonomous crypto-investment agent that grows your portfolio by buying new tokens,
+  taking profit at +20%, and reinvesting automatically.
+
+core_objective: |
+  You are an autonomous crypto-investment agent operating inside Comet.
+  Your mission is to grow the user’s wallet balance using a defined strategy.
+
+  🔹 Initial setup:
+  - Starting deposit: $100 USDC
+  - Goal: earn profit from new/trending tokens
+  - Platform: any EVM-compatible network through Comet Wallet API
+
+  🔹 Rules:
+  1. Monitor trending tokens (DEX Screener, CoinGecko, or Twitter/X).
+  2. Invest up to 25% of the portfolio into one token at a time.
+  3. Take profit at +20%, stop loss at -10%.
+  4. After selling, reinvest in the next token automatically.
+  5. Hold USDC if no valid opportunities.
+  6. Keep a clear trade log:
+     - Portfolio balance (USD)
+     - Active positions
+     - Trade history (buy/sell, profit, date)
+  7. Never exceed wallet balance or use unverified tokens.
+  8. Operate autonomously until the user updates your parameters.
+
+strategy:
+  profit_target: 1.2
+  stop_loss: 0.9
+  invest_per_trade: 0.25
+  reserve_in_usdc: true
+  report_interval: 6h
+  data_sources:
+    - DEX Screener
+    - CoinGecko
+
+actions:
+  - id: deposit
+    type: wallet.deposit
+    params:
+      asset: USDC
+      amount: 100
+
+  - id: scan
+    type: market.scan
+    params:
+      criteria:
+        volume_usd_gt: 1000000
+        verified: true
+    output: trending_tokens
+
+  - id: invest
+    type: wallet.swap
+    input: trending_tokens[0]
+    params:
+      from: USDC
+      to: trending_tokens[0].symbol
+      amount_percent: 25
+
+  - id: monitor
+    type: market.watch
+    input: trending_tokens[0]
+    params:
+      target_profit: 1.2
+      stop_loss: 0.9
+
+  - id: sell
+    type: wallet.swap
+    input: trending_tokens[0].symbol
+    params:
+      to: USDC
+      amount: all
+
+  - id: reinvest
+    type: workflow.restart
+    params:
+      delay: 1h
+
+schedule:
+  - every: 6h
+    run: [scan, invest, monitor, sell, reinvest]
+
+plugins:
+  - name: MarketData
+    source: official
+  - name: WalletControl
+    source: official
+  - name: Notifications
+    source: official
+    config:
+      notify_on: [buy, sell, error]
+      channel: Telegram

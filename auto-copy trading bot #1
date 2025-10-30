@@ -1,0 +1,103 @@
+require('dotenv').config();
+const { Connection, PublicKey, Keypair } = require('@solana/web3.js');
+const axios = require('axios');
+
+// --- Config ---
+const RPC = process.env.RPC_WS || 'https://api.mainnet-beta.solana.com';
+const JUPITER_API = process.env.JUPITER_API || 'https://quote-api.jup.ag/v4';
+const BOT_KEY = JSON.parse(process.env.PRIVATE_KEY_JSON);
+const BOT_KP = Keypair.fromSecretKey(Buffer.from(BOT_KEY));
+const BOT_PUB = new PublicKey(process.env.WALLET_PUBKEY);
+const TARGET = new PublicKey(process.env.TARGET_WALLET);
+
+const MIN_COPY_USD = Number(process.env.MIN_COPY_USD || 5);
+const MAX_COPY_USD = Number(process.env.MAX_COPY_USD || 1000);
+const TAKE_PROFIT_SMALL = Number(process.env.TAKE_PROFIT_SMALL || 0.03);
+const TAKE_PROFIT_LARGE = Number(process.env.TAKE_PROFIT_LARGE || 0.07);
+const LARGE_THRESHOLD_USD = Number(process.env.LARGE_THRESHOLD_USD || 1000);
+const SLIPPAGE = Number(process.env.SLIPPAGE || 0.015);
+
+const conn = new Connection(RPC, 'confirmed');
+
+// --- Monitor transactions ---
+async function monitor() {
+  console.log('Subscribing to logs for', TARGET.toBase58());
+  conn.onLogs(TARGET, async (logInfo) => {
+    try {
+      const sig = logInfo.signature;
+      console.log('Detected tx:', sig);
+      const tx = await conn.getTransaction(sig, { commitment: 'confirmed' });
+      if (!tx) return;
+
+      const programIds = tx.transaction.message.accountKeys.map(k => k.toBase58());
+      const maybeSwap = programIds.length > 0; // placeholder check
+      if (!maybeSwap) return;
+
+      const observed_amount_usd = estimateObservedAmountUSD(tx);
+      console.log('Observed amount (USD est):', observed_amount_usd);
+
+      let buy_size_usd = decideCopySizeUSD(observed_amount_usd);
+      if (buy_size_usd < MIN_COPY_USD) return;
+      buy_size_usd = Math.min(buy_size_usd, MAX_COPY_USD);
+
+      console.log(`Will copy-trade ~${buy_size_usd} USD`);
+
+      const targetMint = await detectTargetMintFromTx(tx);
+      if (!targetMint) return;
+
+      const quote = await getJupiterQuote({
+        inputMint: 'So11111111111111111111111111111111111111112', // SOL mint
+        outputMint: targetMint,
+        amountUsd: buy_size_usd,
+        slippage: SLIPPAGE
+      });
+      if (!quote) return;
+
+      const result = await executeSwapViaJupiter(quote, BOT_KP);
+      console.log('Swap result:', result?.txid || result);
+
+      const takeProfit = (buy_size_usd >= LARGE_THRESHOLD_USD)
+        ? TAKE_PROFIT_LARGE
+        : TAKE_PROFIT_SMALL;
+      console.log(`Take profit target: ${(takeProfit * 100).toFixed(1)}%`);
+
+      monitorPositionForTP(targetMint, takeProfit, buy_size_usd);
+    } catch (e) {
+      console.error('Error in handler', e);
+    }
+  }, 'confirmed');
+}
+
+// --- Helper functions (mock versions) ---
+function estimateObservedAmountUSD(tx) {
+  return 50 + Math.floor(Math.random() * 500);
+}
+
+function decideCopySizeUSD(observedAmountUSD) {
+  if (observedAmountUSD >= LARGE_THRESHOLD_USD) return observedAmountUSD * 0.5;
+  else return observedAmountUSD * 0.2;
+}
+
+async function detectTargetMintFromTx(tx) {
+  return '9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E'; // mock BTC mint
+}
+
+async function getJupiterQuote({ inputMint, outputMint, amountUsd, slippage }) {
+  try {
+    return { route: 'mock-route', estimatedAmountOut: 1000 };
+  } catch (e) {
+    console.error('Quote error', e);
+    return null;
+  }
+}
+
+async function executeSwapViaJupiter(quote, keypair) {
+  return { txid: 'MOCKTXID' };
+}
+
+function monitorPositionForTP(mint, takeProfitPct, investedUsd) {
+  console.log(`Monitoring position: ${mint}, TP=${takeProfitPct}, invested=${investedUsd}`);
+}
+
+// --- Run ---
+monitor().catch(console.error);

@@ -1,0 +1,13 @@
+RPC_WS=https://api.mainnet-beta.solana.com
+JUPITER_API=https://quote-api.jup.ag/v4
+PRIVATE_KEY_JSON='[...your key array...]'
+WALLET_PUBKEY=YourBotPubKeyHere
+TARGET_WALLET=TargetWalletPubKeyHere
+MIN_COPY_USD=5
+MAX_COPY_USD=1000
+TAKE_PROFIT_SMALL=0.03
+TAKE_PROFIT_LARGE=0.07
+LARGE_THRESHOLD_USD=1000
+SLIPPAGE=0.015
+
+
